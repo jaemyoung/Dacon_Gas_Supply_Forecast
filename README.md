@@ -23,4 +23,5 @@ sample_submission.csv - 제출 양식
 
 
 (자세한 데이터 명세는 공공데이터포털 :https://www.data.go.kr/data/15091497/fileData.do#)
+
 (진행중인 노션페이지 : https://www.notion.so/6db7b7fdf60a46b4b24118287171ce37#711336f59f9d4d3fb195ba0f8b03ba60)
