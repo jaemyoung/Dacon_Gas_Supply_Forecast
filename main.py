@@ -41,7 +41,7 @@ hol['year'] = hol['연월일'].dt.year
 hol['month'] = hol['연월일'].dt.month
 hol['day'] = hol['연월일'].dt.day
 hol['weekday'] = hol['연월일'].dt.weekday
-
+merge_holiday = pd.merge(hol,hol_effet)
 #total에 근무일 주말 추가 
 total["특수일"] = total["weekday"].apply(lambda x : "근무일" if x  in [0,1,2,3,4] else "주말")
 total = pd.merge(total,merge_holiday, on = ["연월일","year",'month','day','weekday'],how = "left")
@@ -82,30 +82,73 @@ total.to_csv("C:/Users/user/Documents/GitHub/Dacon_Gas_Supply_Forecast/Data/merg
 ###################################################################################################################################
 
 
-
-
-
 total = pd.read_csv("C:/Users/user/Documents/GitHub/Dacon_Gas_Supply_Forecast/Data/merge_total_211206.csv",encoding="CP949")
 submission = pd.read_csv("C:/Users/user/Documents/GitHub/Dacon_Gas_Supply_Forecast/Data/sample_submission.csv",encoding="UTF-8")
 
 y_train = total[["year","month","day","시간","weekday","구분","공급량"]]
-X_train = total.drop(["연월일","공급량"],axis = 1)
-#명목형데이터 처리
-X_train = pd.get_dummies(X_train)
+X_train = total.drop(["year","연월일","공급량"],axis = 1)
+
+
+#훈련데이터 = 3월 31일까지의 데이터
+X_valid = X_train[(X_train["month"]<4)]
+y_valid = y_train[(y_train["month"]<4)]
+
+#test 데이터 셋 (3월 31일까지 데이터)
+X_test = pd.DataFrame()
+X_test["연월일"] = pd.Series(pd.date_range("1/1/2019",freq= "h",periods = 2160))
+X_test["year"] = X_test["연월일"].dt.year
+X_test["month"] = X_test["연월일"].dt.month
+X_test['day'] = X_test['연월일'].dt.day
+X_test['weekday'] = X_test['연월일'].dt.weekday
+X_test['시간'] = X_test['연월일'].dt.time
+X_test['시간'] = X_test['시간'].apply(lambda x: x.strftime('%H')).astype(int)
+#특수일 추가
+X_test["특수일"] = X_test["weekday"].apply(lambda x : "근무일" if x  in [0,1,2,3,4] else "주말")
+X_test= pd.merge(X_test,merge_holiday, on = ["year",'month','day','weekday'],how = "left")
+X_test["특수일_y"] = np.where(pd.notnull(X_test["특수일_y"]) == True, X_test['특수일_y'], X_test['특수일_x']) # 조건문으로 nan값 채우기
+
+
+predict_rate = []
+for idx, val in enumerate(X_test["특수일_y"]):
+    if val == "근무일":
+        predict_rate.append(1)
+    elif val == "주말":
+        predict_rate.append(-0.165)
+    else:
+        predict_rate.append(X_test["추정치"][idx])
+X_test["추정치"] = predict_rate
+X_test = X_test.drop(["year","연월일_x","연월일_y"],axis = 1)
+#기온은 2013년 데이터 쓰기
+test_temp = X_valid[:2160]["temp"]
+X_test = pd.concat([X_test,test_temp],axis = 1)
+#구분별로 똑같은거 7개 만들기
+X_test = pd.concat([X_test,X_test,X_test,X_test,X_test,X_test,X_test],axis=0)
+#구분 넣어주기
+b0= pd.Series([0]*2160)
+b1 = pd.Series([1]*2160)
+b2 = pd.Series([2]*2160)
+b3 = pd.Series([3]*2160)
+b4 = pd.Series([4]*2160)
+b5 = pd.Series([5]*2160)
+b6 = pd.Series([6]*2160)
+a= pd.DataFrame()
+a["구분"] = pd.concat([b0,b1,b2,b3,b4,b5,b6],axis=0)
+X_test["구분"] = a["구분"]
+
+X_test.to_csv("C:/Users/user/Documents/GitHub/Dacon_Gas_Supply_Forecast/Data/X_test.csv",index =False)
+q =pd.read_csv("C:/Users/user/Documents/GitHub/Dacon_Gas_Supply_Forecast/Data/X_test.csv")
+#스케일러
+############################################################
 #수치형데이터 처리
 from sklearn.preprocessing import StandardScaler
 from sklearn.preprocessing import MinMaxScaler
-#데이터 나누기
-#from sklearn.model_selection import train_test_split
-X_valid1,X_valid2,y_valid1,y_valid2 = train_test_split(X_train,y_train, test_size = 0.1)
-print(15120*6)
-X_valid = X_train[(X_train["month"]<4)].drop("year",axis =1)
-y_valid = y_train[(y_train["month"]<4)]
-
-X_test = X_valid[:15120]
-X_train = X_train.drop("year",axis =1)
 #명목형데이터 처리
-
+concat = pd.concat([X_valid,X_test])
+concat = pd.get_dummies(concat)
+X_vaild = concat[:90888]
+X_test = concat[90888:]
+###################################################################    
+#구분별학습
 
 X_train_A = X_train[(X_train["구분"]== 0)&(X_train["month"]<4)].drop("구분",axis =1)
 y_train_A = y_train[(y_train["구분"]==0)&(y_train["month"]<4)]
@@ -131,11 +174,11 @@ y_train_G = y_train[(y_train["구분"]==6)&(y_train["month"]<4)]
 #모델선택
 from xgboost import XGBRegressor
 xgb = XGBRegressor()
-xgb.fit(X_train,y_train["공급량"])
+xgb.fit(X_vaild,y_valid["공급량"])
 pred_xgb = xgb.predict(X_test)
 
 submission["공급량"] = pred_xgb
-submission.to_csv("C:/Users/user/Documents/GitHub/Dacon_Gas_Supply_Forecast/Data/submission_211206.csv",encoding="CP949",index=False)
+submission.to_csv("C:/Users/user/Documents/GitHub/Dacon_Gas_Supply_Forecast/Data/submission_211206(요일추가).csv",encoding="UTF-8",index=False)
 
 #평가
 
@@ -144,4 +187,4 @@ r2_score(y_train["공급량"][:15120],pred_xgb)
 
 np.mean((np.abs(y_train["공급량"][:15120]-pred_xgb))/y_train["공급량"][:15120])
 
-#test에 공급량에 대한 가중치를 알려면 2019년의 공휴일과 평일 주말을 대입시켜야
+#test에 공급량에 대한 가중치를 알려면 2019년의 기온을 대입시켜야
