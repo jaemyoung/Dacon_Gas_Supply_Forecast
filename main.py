@@ -15,9 +15,8 @@ from datetime import datetime, timedelta
 
 #전체데이터 불러오기
 total = pd.read_csv("C:/Users/user/Documents/GitHub/Dacon_Gas_Supply_Forecast/Data/한국가스공사_시간별 공급량_20181231.csv", encoding="CP949")
-
-###################################################################################################################
 #데이터 전처리
+###################################################################################################################
 #명목형변수 처리, 구분 encoding!      ex) A -> 0, B -> 1, ...
 d_map = {}
 for i, d in enumerate(total['구분'].unique()):
@@ -34,7 +33,6 @@ total['시간'] =total['시간']-1 #시간단위 맞추기위해 -1해주기
 #total에 특수일가중치 추가
 hol_effet = pd.read_csv("C:/Users/user/Documents/GitHub/Dacon_Gas_Supply_Forecast/Data/한국가스공사_대전 도시가스 수요의 특수일 효과_수정.csv", encoding="CP949")
 hol = pd.read_csv("C:/Users/user/Documents/GitHub/Dacon_Gas_Supply_Forecast/Data/2013~2018공휴일_수정.csv",index_col=0,encoding="CP949")
-
 #연월일에서 column 추출
 hol['연월일'] = pd.to_datetime(hol['연월일'])
 hol['year'] = hol['연월일'].dt.year
@@ -65,35 +63,27 @@ temp['month'] = temp['연월일'].dt.month
 temp['day'] = temp['연월일'].dt.day
 temp['weekday'] = temp['연월일'].dt.weekday
 temp['시간'] = temp['연월일'].dt.time
-
 temp['시간'] = temp['시간'].apply(lambda x: x.strftime('%H')).astype(int) #datetime에서 시간만빼서 int로 저장
 temp = temp.drop(['연월일'],axis=1) #연월일 빼기
-#merge_temp = pd.merge(total,temp,how="left", on =["year",'month','day','weekday','시간'])
 total = pd.merge(total,temp,how="left", on =["year",'month','day','weekday','시간'])
 ###########################################################################################################
 
-
-#2017년 10월3일 개천절+추석이라 24개 데이터 늘어남 껄껄
-#추가적으로 평일과 주말 나눠서 추정치 넣어줘야됨 #해결
-
-#데이터 저장
-total = total.drop(["Unnamed: 0","Unnamed: 0.1"],axis = 1)
-total.to_csv("C:/Users/user/Documents/GitHub/Dacon_Gas_Supply_Forecast/Data/merge_total_211206.csv",encoding="CP949",index=False)
+#학습/ 테스트 데이터 설정
 ###################################################################################################################################
-
-
-total = pd.read_csv("C:/Users/user/Documents/GitHub/Dacon_Gas_Supply_Forecast/Data/merge_total_211206.csv",encoding="CP949")
+#제출Csv
 submission = pd.read_csv("C:/Users/user/Documents/GitHub/Dacon_Gas_Supply_Forecast/Data/sample_submission.csv",encoding="UTF-8")
 
+#학습데이터 설정
 y_train = total[["year","month","day","시간","weekday","구분","공급량"]]
 X_train = total.drop(["year","연월일","공급량"],axis = 1)
+#학습데이터 = 1월 ~3월 31일까지의 데이터
+X_valid1 = X_train[(X_train["month"]<4)]
+y_valid1 = y_train[(y_train["month"]<4)]
+#학습데이터 = 1월~12월31일까지의 데이터
+X_valid2 = X_train
+y_valid2 = y_train
 
-
-#훈련데이터 = 3월 31일까지의 데이터
-X_valid = X_train[(X_train["month"]<4)]
-y_valid = y_train[(y_train["month"]<4)]
-
-#test 데이터 셋 (3월 31일까지 데이터)
+#테스트데이터 (3월 31일까지 데이터)
 X_test = pd.DataFrame()
 X_test["연월일"] = pd.Series(pd.date_range("1/1/2019",freq= "h",periods = 2160))
 X_test["year"] = X_test["연월일"].dt.year
@@ -106,8 +96,6 @@ X_test['시간'] = X_test['시간'].apply(lambda x: x.strftime('%H')).astype(int
 X_test["특수일"] = X_test["weekday"].apply(lambda x : "근무일" if x  in [0,1,2,3,4] else "주말")
 X_test= pd.merge(X_test,merge_holiday, on = ["year",'month','day','weekday'],how = "left")
 X_test["특수일_y"] = np.where(pd.notnull(X_test["특수일_y"]) == True, X_test['특수일_y'], X_test['특수일_x']) # 조건문으로 nan값 채우기
-
-
 predict_rate = []
 for idx, val in enumerate(X_test["특수일_y"]):
     if val == "근무일":
@@ -134,9 +122,11 @@ b6 = pd.Series([6]*2160)
 a= pd.DataFrame()
 a["구분"] = pd.concat([b0,b1,b2,b3,b4,b5,b6],axis=0)
 X_test["구분"] = a["구분"]
-
 X_test.to_csv("C:/Users/user/Documents/GitHub/Dacon_Gas_Supply_Forecast/Data/X_test.csv",index =False)
-q =pd.read_csv("C:/Users/user/Documents/GitHub/Dacon_Gas_Supply_Forecast/Data/X_test.csv")
+
+
+
+
 #스케일러
 ############################################################
 #수치형데이터 처리
