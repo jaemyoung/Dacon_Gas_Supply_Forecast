@@ -6,6 +6,7 @@ Created on Wed Nov 10 17:35:58 2021
 """
 import seaborn as sn
 import pickle
+import pandas as pd
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -13,7 +14,7 @@ import warnings
 plt.style.use("ggplot")
 warnings.filterwarnings('ignore')
 from datetime import datetime, timedelta
-
+import seaborn as sns
 #전체데이터 불러오기
 total = pd.read_csv("C:/Users/user/Documents/GitHub/Dacon_Gas_Supply_Forecast/Data/한국가스공사_시간별 공급량_20181231.csv", encoding="CP949")
 #데이터 전처리
@@ -27,9 +28,10 @@ total['연월일'] = pd.to_datetime(total['연월일'])
 #연월일에서 column 추출
 total['year'] = total['연월일'].dt.year
 total['month'] = total['연월일'].dt.month
-total['day'] = total['연월일'].dt.day
+total[''] = total['연월일'].dt.day
 total['weekday'] = total['연월일'].dt.weekday
 total['시간'] =total['시간']-1 #시간단위 맞추기위해 -1해주기
+
 #############################################################################################################
 #total에 특수일가중치 추가
 hol_effet = pd.read_csv("C:/Users/user/Documents/GitHub/Dacon_Gas_Supply_Forecast/Data/한국가스공사_대전 도시가스 수요의 특수일 효과_수정.csv", encoding="CP949")
@@ -54,6 +56,8 @@ for idx, val in enumerate(total["특수일_y"]):
     else:
         predict_rate.append(total["추정치"][idx])
 total["추정치"] = predict_rate
+
+
 ###############################################################################################################
 #total에 temp추가
 temp = pd.read_csv("C:/Users/user/Documents/GitHub/Dacon_Gas_Supply_Forecast/Data/avg_temp.csv",encoding="CP949")
@@ -100,7 +104,7 @@ X_train = total.drop(["year","연월일","suply"],axis = 1)
 
 #테스트데이터 (3월 31일까지 데이터)
 X_test = pd.DataFrame()
-X_test["연월일"] = pd.Series(pd.date_range("1/1/2019",freq= "h",periods = 2160))
+X_test["연월일"] = pd.Series(pd.date_range("1/1/2019",freq= "h",periods = 8760))
 X_test["year"] = X_test["연월일"].dt.year
 X_test["month"] = X_test["연월일"].dt.month
 X_test['day'] = X_test['연월일'].dt.day
@@ -120,32 +124,34 @@ for idx, val in enumerate(X_test["특수일_y"]):
     else:
         predict_rate.append(X_test["추정치"][idx])
 X_test["추정치"] = predict_rate
-X_test = X_test.drop(["year","연월일_x","연월일_y"],axis = 1)
+X_test = X_test.drop(["year","연월일_y"],axis = 1)
 #구분별로 똑같은거 7개 만들기
 X_test = pd.concat([X_test,X_test,X_test,X_test,X_test,X_test,X_test],axis=0)
 X_test
+
 #구분 넣어주기
-b0= pd.Series([0]*2160)
-b1 = pd.Series([1]*2160)
-b2 = pd.Series([2]*2160)
-b3 = pd.Series([3]*2160)
-b4 = pd.Series([4]*2160)
-b5 = pd.Series([5]*2160)
-b6 = pd.Series([6]*2160)
+b0= pd.Series([0]*8760)
+b1 = pd.Series([1]*8760)
+b2 = pd.Series([2]*8760)
+b3 = pd.Series([3]*8760)
+b4 = pd.Series([4]*8760)
+b5 = pd.Series([5]*8760)
+b6 = pd.Series([6]*8760)
 a= pd.DataFrame()
 a["구분"] = pd.concat([b0,b1,b2,b3,b4,b5,b6],axis=0)
 X_test["구분"] = a["구분"]
 #기온과 습도 2019년 데이터 쓰기
 test_temp = pd.read_csv("C:/Users/user/Documents/GitHub/Dacon_Gas_Supply_Forecast/Data/test_2019.csv",encoding = "UTF-8")
 test_temp
-X_test[["temp","humidity"]] = pd.concat([test_temp[["temp","humidity"]][:2160],test_temp[["temp","humidity"]][:2160],test_temp[["temp","humidity"]][:2160],test_temp[["temp","humidity"]][:2160],test_temp[["temp","humidity"]][:2160],test_temp[["temp","humidity"]][:2160],test_temp[["temp","humidity"]][:2160]],axis=0)
+X_test[["temp","humidity"]] = pd.concat([test_temp[["temp","humidity"]],test_temp[["temp","humidity"]],test_temp[["temp","humidity"]],
+                                         test_temp[["temp","humidity"]],test_temp[["temp","humidity"]],test_temp[["temp","humidity"]],test_temp[["temp","humidity"]]],axis=0)
 X_test = X_test.rename(columns={'시간':'time',"구분":"kind_of_gas","추정치":"holiday_estimate","공급량":"suply"})
 #X_test.to_csv("C:/Users/user/Documents/GitHub/Dacon_Gas_Supply_Forecast/Data/X_test.csv",index=False)
-X_test[2160:]
+X_test
 
 ################################################################################################   
 #구분별로 time, month, hoiday_estimate, temp 만 사용
-index = ["day","month","temp","humidity","holiday_estimate"]
+index = ["time","month","temp","humidity","holiday_estimate"]
 
 #1월 ~ 12월31일까지 구분별 학습데이터
 
@@ -172,13 +178,13 @@ X_train_G = X_train[(X_train["kind_of_gas"]== 6)][index]
 y_train_G = y_train[(y_train["kind_of_gas"]==6)]["suply"]
 
 #1월~12월31일 까지 구분별 테스트데이터
-X_test_A = X_test[X_test["구분"]==0][index]
-X_test_B = X_test[X_test["구분"]==1][index]
-X_test_C = X_test[X_test["구분"]==2][index]
-X_test_D = X_test[X_test["구분"]==3][index]
-X_test_E = X_test[X_test["구분"]==4][index]
-X_test_F = X_test[X_test["구분"]==5][index]
-X_test_G = X_test[X_test["구분"]==6][index]
+X_test_A = X_test[X_test["kind_of_gas"]==0][index]
+X_test_B = X_test[X_test["kind_of_gas"]==1][index]
+X_test_C = X_test[X_test["kind_of_gas"]==2][index]
+X_test_D = X_test[X_test["kind_of_gas"]==3][index]
+X_test_E = X_test[X_test["kind_of_gas"]==4][index]
+X_test_F = X_test[X_test["kind_of_gas"]==5][index]
+X_test_G = X_test[X_test["kind_of_gas"]==6][index]
 
 #1월 ~ 3월31일까지
 X_test_A = X_test[(X_test["kind_of_gas"]==0)&(X_test["month"]<4)][index]
@@ -230,10 +236,12 @@ pred_xgb = np.concatenate([pred_xgb_A,pred_xgb_B,pred_xgb_C,pred_xgb_D,pred_xgb_
 submission = pd.read_csv("C:/Users/user/Documents/GitHub/Dacon_Gas_Supply_Forecast/Data/sample_submission.csv",encoding="UTF-8")
 submission["공급량"] = pred_xgb
 submission.to_csv("C:/Users/user/Documents/GitHub/Dacon_Gas_Supply_Forecast/Data/submission(그리드서치).csv",encoding="UTF-8",index=False)
+X_test["공급량"] = pred_xgb
+X_test.to_csv("C:/Users/user/Documents/GitHub/Dacon_Gas_Supply_Forecast/Data/X_test_19년도.csv",encoding="UTF-8",index=False)
 pred_xgb1 = pd.DataFrame()
 pred_xgb1["pred"] = pred_xgb
 pred_xgb1.to_csv("C:/Users/user/Documents/GitHub/Dacon_Gas_Supply_Forecast/Data/pred_xgb(2019년)).csv",encoding="UTF-8",index=False)
-#################################################################################################################
-#평가
+########################################################################################################################
+
 
 
