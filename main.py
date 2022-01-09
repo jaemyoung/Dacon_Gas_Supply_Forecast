@@ -4,7 +4,6 @@ Created on Wed Nov 10 17:35:58 2021
 
 @author: 82109
 """
-import seaborn as sn
 import pickle
 import numpy as np
 import pandas as pd
@@ -67,36 +66,22 @@ temp['시간'] = temp['연월일'].dt.time
 temp['시간'] = temp['시간'].apply(lambda x: x.strftime('%H')).astype(int) #datetime에서 시간만빼서 int로 저장
 temp = temp.drop(['연월일'],axis=1) #연월일 빼기
 total = pd.merge(total,temp,how="left", on =["year",'month','day','weekday','시간'])
-#total에 humidity 추가
-avg_humidity = pd.read_csv("C:/Users/user/Documents/GitHub/Dacon_Gas_Supply_Forecast/Data/avg_humidity.csv",encoding= "UTF-8")
-#연월일에서 column 추출
-avg_humidity['time'] = pd.to_datetime(avg_humidity['time'])
-avg_humidity['year'] = avg_humidity['time'].dt.year
-avg_humidity['month'] = avg_humidity["time"].dt.month
-avg_humidity['day'] = avg_humidity['time'].dt.day
-avg_humidity['weekday'] = avg_humidity['time'].dt.weekday
-avg_humidity['시간'] = avg_humidity['time'].dt.time
-avg_humidity['시간'] = avg_humidity['시간'].apply(lambda x: x.strftime('%H')).astype(int) #datetime에서 시간만빼서 int로 저장
-avg_humidity = avg_humidity.drop(['time'],axis=1) #연월일 빼기
-total = pd.merge(total,avg_humidity,how="left", on =["year",'month','day','weekday','시간'])
-
-
 ###########################################################################################################
-#상관관계 그래프
-total = total.rename(columns={'시간':'time',"구분":"kind_of_gas","추정치":"holiday_estimate","공급량":"suply"})
-test = test.rename(columns={'시간':'time',"구분":"kind_of_gas","추정치":"holiday_estimate","공급량":"suply"})
-test= test_humidity.drop(["Unnamed: 0","연월일"],axis =1)
 
-plt.figure(figsize=(12,8))
-sn.heatmap(test.corr(), annot=True)
-plt.title("Correlation")
 #학습/ 테스트 데이터 설정
 ###################################################################################################################################
+#제출Csv
+submission = pd.read_csv("C:/Users/user/Documents/GitHub/Dacon_Gas_Supply_Forecast/Data/sample_submission.csv",encoding="UTF-8")
 
 #학습데이터 설정
-total = total.rename(columns={'시간':'time',"구분":"kind_of_gas","추정치":"holiday_estimate","공급량":"suply"})
-y_train = total[["year","month","day","time","weekday","kind_of_gas","suply"]]
-X_train = total.drop(["year","연월일","suply"],axis = 1)
+y_train = total[["year","month","day","시간","weekday","구분","공급량"]]
+X_train = total.drop(["year","연월일","공급량"],axis = 1)
+#학습데이터 = 1월 ~3월 31일까지의 데이터
+X_valid1 = X_train[(X_train["month"]<4)]
+y_valid1 = y_train[(y_train["month"]<4)]
+#학습데이터 = 1월~12월31일까지의 데이터
+X_valid2 = X_train
+y_valid2 = y_train
 
 #테스트데이터 (3월 31일까지 데이터)
 X_test = pd.DataFrame()
@@ -106,7 +91,7 @@ X_test["month"] = X_test["연월일"].dt.month
 X_test['day'] = X_test['연월일'].dt.day
 X_test['weekday'] = X_test['연월일'].dt.weekday
 X_test['시간'] = X_test['연월일'].dt.time
-X_test["시간"] = X_test['시간'].apply(lambda x: x.strftime('%H')).astype(int)
+X_test['시간'] = X_test['시간'].apply(lambda x: x.strftime('%H')).astype(int)
 #특수일 추가
 X_test["특수일"] = X_test["weekday"].apply(lambda x : "근무일" if x  in [0,1,2,3,4] else "주말")
 X_test= pd.merge(X_test,merge_holiday, on = ["year",'month','day','weekday'],how = "left")
@@ -121,9 +106,11 @@ for idx, val in enumerate(X_test["특수일_y"]):
         predict_rate.append(X_test["추정치"][idx])
 X_test["추정치"] = predict_rate
 X_test = X_test.drop(["year","연월일_x","연월일_y"],axis = 1)
+#기온은 2013년 데이터 쓰기
+test_temp = X_valid[:2160]["temp"]
+X_test = pd.concat([X_test,test_temp],axis = 1)
 #구분별로 똑같은거 7개 만들기
 X_test = pd.concat([X_test,X_test,X_test,X_test,X_test,X_test,X_test],axis=0)
-X_test
 #구분 넣어주기
 b0= pd.Series([0]*2160)
 b1 = pd.Series([1]*2160)
@@ -135,105 +122,59 @@ b6 = pd.Series([6]*2160)
 a= pd.DataFrame()
 a["구분"] = pd.concat([b0,b1,b2,b3,b4,b5,b6],axis=0)
 X_test["구분"] = a["구분"]
-#기온과 습도 2019년 데이터 쓰기
-test_temp = pd.read_csv("C:/Users/user/Documents/GitHub/Dacon_Gas_Supply_Forecast/Data/test_2019.csv",encoding = "UTF-8")
-test_temp
-X_test[["temp","humidity"]] = pd.concat([test_temp[["temp","humidity"]][:2160],test_temp[["temp","humidity"]][:2160],test_temp[["temp","humidity"]][:2160],test_temp[["temp","humidity"]][:2160],test_temp[["temp","humidity"]][:2160],test_temp[["temp","humidity"]][:2160],test_temp[["temp","humidity"]][:2160]],axis=0)
-X_test = X_test.rename(columns={'시간':'time',"구분":"kind_of_gas","추정치":"holiday_estimate","공급량":"suply"})
-#X_test.to_csv("C:/Users/user/Documents/GitHub/Dacon_Gas_Supply_Forecast/Data/X_test.csv",index=False)
-X_test[2160:]
+X_test.to_csv("C:/Users/user/Documents/GitHub/Dacon_Gas_Supply_Forecast/Data/X_test.csv",index =False)
 
-################################################################################################   
-#구분별로 time, month, hoiday_estimate, temp 만 사용
-index = ["day","month","temp","humidity","holiday_estimate"]
 
-#1월 ~ 12월31일까지 구분별 학습데이터
 
-#학습 데이터 구분별 52584개
-X_train_A = X_train[X_train["kind_of_gas"]==0][index]
-y_train_A = y_train[(y_train["kind_of_gas"]==0)]["suply"]
 
-X_train_B = X_train[(X_train["kind_of_gas"]== 1)][index]
-y_train_B = y_train[(y_train["kind_of_gas"]==1)]["suply"]
+#스케일러
+############################################################
+#수치형데이터 처리
+from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import MinMaxScaler
+#명목형데이터 처리
+concat = pd.concat([X_valid,X_test])
+concat = pd.get_dummies(concat)
+X_vaild = concat[:90888]
+X_test = concat[90888:]
+###################################################################    
+#구분별학습
 
-X_train_C = X_train[(X_train["kind_of_gas"]== 2)][index]
-y_train_C = y_train[(y_train["kind_of_gas"]==2)]["suply"]
+X_train_A = X_train[(X_train["구분"]== 0)&(X_train["month"]<4)].drop("구분",axis =1)
+y_train_A = y_train[(y_train["구분"]==0)&(y_train["month"]<4)]
 
-X_train_D = X_train[(X_train["kind_of_gas"]== 3)][index]
-y_train_D = y_train[(y_train["kind_of_gas"]==3)]["suply"]
+X_train_B = X_train[(X_train["구분"]== 1)&(X_train["month"]<4)].drop("구분",axis =1)
+y_train_B = y_train[(y_train["구분"]==1)&(y_train["month"]<4)]
 
-X_train_E = X_train[(X_train["kind_of_gas"]== 4)][index]
-y_train_E = y_train[(y_train["kind_of_gas"]==4)]["suply"]
+X_train_C = X_train[(X_train["구분"]== 2)&(X_train["month"]<4)].drop("구분",axis =1)
+y_train_C = y_train[(y_train["구분"]==2)&(y_train["month"]<4)]
 
-X_train_F = X_train[(X_train["kind_of_gas"]== 5)][index]
-y_train_F = y_train[(y_train["kind_of_gas"]==5)]["suply"]
+X_train_D = X_train[(X_train["구분"]== 3)&(X_train["month"]<4)].drop("구분",axis =1)
+y_train_D = y_train[(y_train["구분"]==3)&(y_train["month"]<4)]
+
+X_train_E = X_train[(X_train["구분"]== 4)&(X_train["month"]<4)].drop("구분",axis =1)
+y_train_E = y_train[(y_train["구분"]==4)&(y_train["month"]<4)]
+
+X_train_F = X_train[(X_train["구분"]== 5)&(X_train["month"]<4)].drop("구분",axis =1)
+y_train_F = y_train[(y_train["구분"]==5)&(y_train["month"]<4)]
                     
-X_train_G = X_train[(X_train["kind_of_gas"]== 6)][index]
-y_train_G = y_train[(y_train["kind_of_gas"]==6)]["suply"]
+X_train_G = X_train[(X_train["구분"]== 6)&(X_train["month"]<4)].drop("구분",axis =1)
+y_train_G = y_train[(y_train["구분"]==6)&(y_train["month"]<4)]
 
-#1월~12월31일 까지 구분별 테스트데이터
-X_test_A = X_test[X_test["구분"]==0][index]
-X_test_B = X_test[X_test["구분"]==1][index]
-X_test_C = X_test[X_test["구분"]==2][index]
-X_test_D = X_test[X_test["구분"]==3][index]
-X_test_E = X_test[X_test["구분"]==4][index]
-X_test_F = X_test[X_test["구분"]==5][index]
-X_test_G = X_test[X_test["구분"]==6][index]
-
-#1월 ~ 3월31일까지
-X_test_A = X_test[(X_test["kind_of_gas"]==0)&(X_test["month"]<4)][index]
-X_test_B = X_test[(X_test["kind_of_gas"]==0)&(X_test["month"]<4)][index]
-X_test_C = X_test[(X_test["kind_of_gas"]==0)&(X_test["month"]<4)][index]
-X_test_D = X_test[(X_test["kind_of_gas"]==0)&(X_test["month"]<4)][index]
-X_test_E = X_test[(X_test["kind_of_gas"]==0)&(X_test["month"]<4)][index]
-X_test_F = X_test[(X_test["kind_of_gas"]==0)&(X_test["month"]<4)][index]
-X_test_G = X_test[(X_test["kind_of_gas"]==0)&(X_test["month"]<4)][index]
 #모델선택
-#########################################################################################################
-#XGB
 from xgboost import XGBRegressor
 xgb = XGBRegressor()
-xgb.fit(X_train_A,y_train_A)
-pred_xgb_A = xgb.predict(X_test_A)
+xgb.fit(X_vaild,y_valid["공급량"])
+pred_xgb = xgb.predict(X_test)
 
-xgb.fit(X_train_B,y_train_B)
-pred_xgb_B = xgb.predict(X_test_B)
-
-xgb.fit(X_train_C,y_train_C)
-pred_xgb_C = xgb.predict(X_test_C)
-
-xgb.fit(X_train_D,y_train_D)
-pred_xgb_D = xgb.predict(X_test_D)
-
-xgb.fit(X_train_E,y_train_E)
-pred_xgb_E = xgb.predict(X_test_E)
-
-xgb.fit(X_train_F,y_train_F)
-pred_xgb_F = xgb.predict(X_test_F)
-
-xgb.fit(X_train_G,y_train_G)
-pred_xgb_G = xgb.predict(X_test_G)
-
-#그리드 서치
-from sklearn import model_selection
-xgb_parameters ={'max_depth' : [3,4,5,6] , 'n_estimators': [12,24,32], 'learning_rate':[0.01, 0.1], 'gamma': [0.5, 1, 2], 'random_state':[99]}
-grid_search_xgb = model_selection.GridSearchCV ( estimator = xgb, param_grid = xgb_parameters, scoring = 'recall', cv = 10 )
-grid_search_xgb.fit(X_train_A,y_train_A )
-best_xgb_parameter = grid_search_xgb.best_estimator_
-best_xgb_parameter
-
-#결과값 합치기
-pred_xgb = np.concatenate([pred_xgb_A,pred_xgb_B,pred_xgb_C,pred_xgb_D,pred_xgb_E,pred_xgb_F,pred_xgb_G],axis = 0)
-
-
-#제출
-submission = pd.read_csv("C:/Users/user/Documents/GitHub/Dacon_Gas_Supply_Forecast/Data/sample_submission.csv",encoding="UTF-8")
 submission["공급량"] = pred_xgb
-submission.to_csv("C:/Users/user/Documents/GitHub/Dacon_Gas_Supply_Forecast/Data/submission(그리드서치).csv",encoding="UTF-8",index=False)
-pred_xgb1 = pd.DataFrame()
-pred_xgb1["pred"] = pred_xgb
-pred_xgb1.to_csv("C:/Users/user/Documents/GitHub/Dacon_Gas_Supply_Forecast/Data/pred_xgb(2019년)).csv",encoding="UTF-8",index=False)
-#################################################################################################################
+submission.to_csv("C:/Users/user/Documents/GitHub/Dacon_Gas_Supply_Forecast/Data/submission_211206(요일추가).csv",encoding="UTF-8",index=False)
+
 #평가
 
+from sklearn.metrics import r2_score
+r2_score(y_train["공급량"][:15120],pred_xgb)
 
+np.mean((np.abs(y_train["공급량"][:15120]-pred_xgb))/y_train["공급량"][:15120])
+
+#test에 공급량에 대한 가중치를 알려면 2019년의 기온을 대입시켜야
