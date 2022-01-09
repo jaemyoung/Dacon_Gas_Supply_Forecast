@@ -64,4 +64,3 @@ merge_total = pd.merge(merge_temp,merge_holiday,how="left") #total로 merge
 
 merge_total.to_csv("C:/Users/user/Documents/GitHub/Dacon_Gas_Supply_Forecast/Data/merge_total_211117.csv",encoding="CP949")
 
-total['year'].apply(lambda x : "2016년 이하" if x <2016 else "2016년초과")
