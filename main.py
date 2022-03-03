@@ -228,20 +228,7 @@ grid_search_xgb.fit(X_train_A,y_train_A )
 best_xgb_parameter = grid_search_xgb.best_estimator_
 best_xgb_parameter
 
-#결과값 합치기
-pred_xgb = np.concatenate([pred_xgb_A,pred_xgb_B,pred_xgb_C,pred_xgb_D,pred_xgb_E,pred_xgb_F,pred_xgb_G],axis = 0)
-
-
-#제출
-submission = pd.read_csv("C:/Users/user/Documents/GitHub/Dacon_Gas_Supply_Forecast/Data/sample_submission.csv",encoding="UTF-8")
-submission["공급량"] = pred_xgb
-submission.to_csv("C:/Users/user/Documents/GitHub/Dacon_Gas_Supply_Forecast/Data/submission(그리드서치).csv",encoding="UTF-8",index=False)
-X_test["공급량"] = pred_xgb
-X_test.to_csv("C:/Users/user/Documents/GitHub/Dacon_Gas_Supply_Forecast/Data/X_test_19년도.csv",encoding="UTF-8",index=False)
-pred_xgb1 = pd.DataFrame()
-pred_xgb1["pred"] = pred_xgb
-pred_xgb1.to_csv("C:/Users/user/Documents/GitHub/Dacon_Gas_Supply_Forecast/Data/pred_xgb(2019년)).csv",encoding="UTF-8",index=False)
-########################################################################################################################
+#X
 
 
 
